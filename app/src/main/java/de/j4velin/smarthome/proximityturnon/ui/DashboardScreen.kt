@@ -1,7 +1,9 @@
 package de.j4velin.smarthome.proximityturnon.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.animateColorAsState
@@ -24,6 +26,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.j4velin.smarthome.proximityturnon.LightSensorService
 import de.j4velin.smarthome.proximityturnon.Settings
@@ -380,6 +385,65 @@ fun CameraCard(
                     Text("Test camera check now")
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            OverlayPermissionRow()
+        }
+    }
+}
+
+/**
+ * Android only lets the service use the camera after a reboot if the app may
+ * draw over other apps. Shows the state and opens the system setting to grant it.
+ */
+@Composable
+private fun OverlayPermissionRow() {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var granted by remember { mutableStateOf(android.provider.Settings.canDrawOverlays(context)) }
+    // re-check when coming back from the system settings screen
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) granted = android.provider.Settings.canDrawOverlays(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (granted) "Works after reboot" else "Camera unavailable after reboot",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Text(
+                text = "Requires \"Display over other apps\" so the service may use the camera " +
+                        "when it was started at boot rather than from this screen.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+            )
+        }
+        if (!granted) {
+            Spacer(modifier = Modifier.width(16.dp))
+            OutlinedButton(onClick = {
+                context.startActivity(
+                    Intent(
+                        android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:${context.packageName}")
+                    )
+                )
+            }) { Text("Grant") }
+        } else {
+            Icon(
+                imageVector = Icons.Rounded.CheckCircle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }

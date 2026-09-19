@@ -8,7 +8,9 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import de.j4velin.smarthome.proximityturnon.BootReceiver
 import de.j4velin.smarthome.proximityturnon.LightSensorService
+import de.j4velin.smarthome.proximityturnon.updateSettings
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DashboardViewModel : ViewModel() {
@@ -83,10 +86,11 @@ class DashboardViewModel : ViewModel() {
     }
 
     private fun startService(context: Context) {
-        val intent = Intent(context, LightSensorService::class.java)
+        val intent = Intent(context, LightSensorService::class.java).putExtra(LightSensorService.EXTRA_FROM_UI, true)
         context.startForegroundService(intent)
         bindToService(context)
         _isServiceRunning.value = true
+        setAutoStart(context, true)
     }
 
     private fun stopService(context: Context) {
@@ -94,6 +98,13 @@ class DashboardViewModel : ViewModel() {
         val intent = Intent(context, LightSensorService::class.java)
         context.stopService(intent)
         _isServiceRunning.value = false
+        setAutoStart(context, false)
+    }
+
+    /** Remembers whether the service should come back after a reboot, see [BootReceiver] */
+    private fun setAutoStart(context: Context, autoStart: Boolean) {
+        val appContext = context.applicationContext
+        viewModelScope.launch { appContext.updateSettings { it.copy(autoStart = autoStart) } }
     }
 
     private fun bindToService(context: Context) {

@@ -19,6 +19,8 @@ data class Settings(
      * enable broadcast.
      */
     val enabled: Boolean = true,
+    /** Whether the service was running when the device shut down, i.e. should be restarted on boot */
+    val autoStart: Boolean = false,
     val wakeOnShadow: Boolean = true,
     /** Percentage the light level must drop below the baseline to count as a shadow */
     val shadowDropPercent: Int = 15,
@@ -29,6 +31,7 @@ data class Settings(
 ) {
     companion object {
         val ENABLED = booleanPreferencesKey("enabled")
+        val AUTO_START = booleanPreferencesKey("auto_start")
         val WAKE_ON_SHADOW = booleanPreferencesKey("wake_on_shadow")
         val SHADOW_DROP_PERCENT = intPreferencesKey("shadow_drop_percent")
         val CONFIRM_WITH_CAMERA = booleanPreferencesKey("confirm_with_camera")
@@ -36,6 +39,7 @@ data class Settings(
 
         fun from(prefs: Preferences) = Settings(
             enabled = prefs[ENABLED] ?: true,
+            autoStart = prefs[AUTO_START] ?: false,
             wakeOnShadow = prefs[WAKE_ON_SHADOW] ?: true,
             shadowDropPercent = prefs[SHADOW_DROP_PERCENT] ?: 15,
             confirmWithCamera = prefs[CONFIRM_WITH_CAMERA] ?: false,
@@ -50,6 +54,7 @@ suspend fun Context.updateSettings(block: (Settings) -> Settings) {
     settingsDataStore.edit { prefs ->
         val new = block(Settings.from(prefs))
         prefs[Settings.ENABLED] = new.enabled
+        prefs[Settings.AUTO_START] = new.autoStart
         prefs[Settings.WAKE_ON_SHADOW] = new.wakeOnShadow
         prefs[Settings.SHADOW_DROP_PERCENT] = new.shadowDropPercent
         prefs[Settings.CONFIRM_WITH_CAMERA] = new.confirmWithCamera

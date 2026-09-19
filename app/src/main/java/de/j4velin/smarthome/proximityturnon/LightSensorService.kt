@@ -59,6 +59,7 @@ class LightSensorService : Service(), SensorEventListener {
     private val detector = ShadowDetector(dropPercent = Settings().shadowDropPercent)
     private var lastWakeAt = 0L
     private var started = false
+    private var startedFromUi = false
     private var monitoring = false
 
     private val _state = MutableStateFlow(State())
@@ -120,6 +121,9 @@ class LightSensorService : Service(), SensorEventListener {
     companion object {
         const val ACTION_ENABLE = "de.j4velin.smarthome.proximityturnon.ENABLE"
         const val ACTION_DISABLE = "de.j4velin.smarthome.proximityturnon.DISABLE"
+
+        /** Boolean extra on the start intent: the service was started from the dashboard */
+        const val EXTRA_FROM_UI = "from_ui"
 
         private const val TAG = "ProximityTurnOn"
         private const val CHANNEL_ID = "light_sensor_service_channel"
@@ -183,11 +187,25 @@ class LightSensorService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.getBooleanExtra(EXTRA_FROM_UI, false) == true) startedFromUi = true
+        // keep the overlay for the lifetime of the service so a system restart
+        // of the service (START_STICKY) is privileged as well
+        Overlay.show(this)
         startForeground()
         started = true
         applyEnabled(_state.value.settings.enabled)
         return START_STICKY
     }
+
+    /**
+     * Android only lets a foreground service use the camera if it was started
+     * while the app was visible, or while the app shows an overlay window (see
+     * [Overlay]). After a boot the former is never true, so the latter is what
+     * makes the camera confirmation survive reboots.
+     */
+    private val cameraUsable: Boolean
+        get() = checkSelfPermission(android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
+                (startedFromUi || Overlay.isShown)
 
     /** Pauses or resumes detection. Persisted, so it survives a service restart. */
     fun setEnabled(enabled: Boolean, source: String = "dashboard") {
@@ -213,10 +231,15 @@ class LightSensorService : Service(), SensorEventListener {
      * when the camera confirmation is enabled.
      */
     private fun startForeground() {
-        val hasCamera = checkSelfPermission(android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         val types = ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or
-                if (hasCamera) ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA else 0
-        startForeground(NOTIFICATION_ID, createNotification(), types)
+                if (cameraUsable) ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA else 0
+        runCatching {
+            startForeground(NOTIFICATION_ID, createNotification(), types)
+        }.onFailure {
+            // the system refused the camera type (background start without exemption)
+            log("startForeground with camera type failed: $it")
+            startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        }
     }
 
     // the partial wake lock is intentionally held for the lifetime of the service:
@@ -248,6 +271,7 @@ class LightSensorService : Service(), SensorEventListener {
     override fun onDestroy() {
         stopMonitoring()
         runCatching { unregisterReceiver(controlReceiver) }
+        Overlay.hide()
         faceCheck?.release()
         toneGenerator?.release()
         scope.cancel()
@@ -324,8 +348,7 @@ class LightSensorService : Service(), SensorEventListener {
         // this is the moment the light sensor alone would wake the screen
         if (_state.value.settings.beepOnShadow) toneGenerator?.startTone(ToneGenerator.TONE_PROP_BEEP, TONE_MS)
         val check = faceCheck
-        val hasCamera = checkSelfPermission(android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-        if (!_state.value.settings.confirmWithCamera || check == null || !hasCamera) {
+        if (!_state.value.settings.confirmWithCamera || check == null || !cameraUsable) {
             wakeScreen()
             return
         }

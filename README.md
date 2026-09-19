@@ -121,12 +121,22 @@ detection bundled). `minSdk` 35.
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+## Reboots and app updates
+
+`BootReceiver` restarts the service after `BOOT_COMPLETED` and `MY_PACKAGE_REPLACED` if it was
+running before (the dashboard switch persists that as `autoStart`).
+
+Android only lets a foreground service use the camera if it was started while the app was
+visible, and since Android 15 the "display over other apps" permission counts as visible only
+while an overlay window is actually shown. The app therefore shows a 1×1 px transparent,
+non-touchable overlay (`Overlay`) before starting the service and keeps it while the service
+runs. Grant the permission once via the "Grant" button on the camera card (or
+`adb shell appops set de.j4velin.smarthome.proximityturnon SYSTEM_ALERT_WINDOW allow`).
+Without it the service still comes back after a reboot, but only the light-sensor path works
+until it is started from the dashboard again.
+
 ## Known limitations
 
-- The camera can only be used by the foreground service if the service was started while the
-  app was visible (Android's while-in-use restriction). Starting it from the dashboard is
-  fine; a system restart of the service or a reboot would leave the camera check failing
-  with `camera bind failed` until the service is started from the app again.
 - Shadow detection needs ambient light. In a dark room nothing triggers; the camera step
   additionally needs enough light to see a face.
 - The wake lock flags used to turn the screen on are deprecated. They work on the M11; other
