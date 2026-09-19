@@ -59,6 +59,47 @@ The app's only screen is a control/diagnostics dashboard:
 
 All toggles and the threshold are persisted in DataStore and survive restarts.
 
+## Pausing from Home Assistant
+
+Detection is pointless at night (too dark for the light sensor anyway) and when nobody is
+home, and pausing it releases the wake lock and keeps the camera off. The service listens for
+two broadcast intents while it is running:
+
+- `de.j4velin.smarthome.proximityturnon.DISABLE`
+- `de.j4velin.smarthome.proximityturnon.ENABLE`
+
+The Home Assistant Companion app can send them with a `command_broadcast_intent`
+notification, so no network code is needed in this app:
+
+```yaml
+automation:
+  - alias: Tablet presence detection
+    triggers:
+      - trigger: state
+        entity_id:
+          - zone.home            # number of people at home
+          - input_boolean.night  # or sun.sun, a schedule, ...
+    actions:
+      - action: notify.mobile_app_tab_m11
+        data:
+          message: command_broadcast_intent
+          data:
+            intent_package_name: de.j4velin.smarthome.proximityturnon
+            intent_action: >-
+              {% if states('zone.home') | int > 0 and is_state('input_boolean.night', 'off') %}
+                de.j4velin.smarthome.proximityturnon.ENABLE
+              {% else %}
+                de.j4velin.smarthome.proximityturnon.DISABLE
+              {% endif %}
+```
+
+The same switch is on the dashboard's status card. The state is persisted, so after a
+service restart it comes back in the state HA last set. Testing from a PC:
+
+```
+adb shell am broadcast -a de.j4velin.smarthome.proximityturnon.DISABLE -p de.j4velin.smarthome.proximityturnon
+```
+
 ## Power and heat
 
 The light sensor path is essentially free: the sensor runs on the sensor hub in the µA range

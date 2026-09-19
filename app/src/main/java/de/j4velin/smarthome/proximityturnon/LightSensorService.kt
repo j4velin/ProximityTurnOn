@@ -58,6 +58,7 @@ class LightSensorService : Service(), SensorEventListener {
 
     private val detector = ShadowDetector(dropPercent = Settings().shadowDropPercent)
     private var lastWakeAt = 0L
+    private var started = false
     private var monitoring = false
 
     private val _state = MutableStateFlow(State())
@@ -101,7 +102,25 @@ class LightSensorService : Service(), SensorEventListener {
         }
     }
 
+    /**
+     * Lets Home Assistant pause/resume detection, e.g. at night or when nobody
+     * is home, via the companion app's `command_broadcast_intent` notification.
+     * Only reachable while the service is running - there is nothing to pause
+     * otherwise.
+     */
+    private val controlReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            when (intent.action) {
+                ACTION_ENABLE -> setEnabled(true, source = "broadcast")
+                ACTION_DISABLE -> setEnabled(false, source = "broadcast")
+            }
+        }
+    }
+
     companion object {
+        const val ACTION_ENABLE = "de.j4velin.smarthome.proximityturnon.ENABLE"
+        const val ACTION_DISABLE = "de.j4velin.smarthome.proximityturnon.DISABLE"
+
         private const val TAG = "ProximityTurnOn"
         private const val CHANNEL_ID = "light_sensor_service_channel"
         private const val NOTIFICATION_ID = 1
@@ -137,10 +156,16 @@ class LightSensorService : Service(), SensorEventListener {
 
         faceCheck = FaceCheck(this, ::log)
 
+        registerReceiver(controlReceiver, IntentFilter().apply {
+            addAction(ACTION_ENABLE)
+            addAction(ACTION_DISABLE)
+        }, RECEIVER_EXPORTED)
+
         scope.launch {
             settingsFlow().collect { settings ->
                 detector.dropPercent = settings.shadowDropPercent
                 _state.update { it.copy(settings = settings, triggerLux = detector.triggerLux) }
+                if (started) applyEnabled(settings.enabled)
             }
         }
 
@@ -159,8 +184,27 @@ class LightSensorService : Service(), SensorEventListener {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground()
-        startMonitoring()
+        started = true
+        applyEnabled(_state.value.settings.enabled)
         return START_STICKY
+    }
+
+    /** Pauses or resumes detection. Persisted, so it survives a service restart. */
+    fun setEnabled(enabled: Boolean, source: String = "dashboard") {
+        log("detection ${if (enabled) "enabled" else "disabled"} ($source)")
+        scope.launch { updateSettings { it.copy(enabled = enabled) } }
+    }
+
+    private fun applyEnabled(enabled: Boolean) {
+        if (enabled == monitoring) return
+        if (enabled) {
+            startMonitoring()
+        } else {
+            stopMonitoring()
+            faceCheck?.cancel()
+            _state.update { it.copy(cameraChecking = false) }
+        }
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, createNotification())
     }
 
     /**
@@ -203,6 +247,7 @@ class LightSensorService : Service(), SensorEventListener {
 
     override fun onDestroy() {
         stopMonitoring()
+        runCatching { unregisterReceiver(controlReceiver) }
         faceCheck?.release()
         toneGenerator?.release()
         scope.cancel()
@@ -336,7 +381,7 @@ class LightSensorService : Service(), SensorEventListener {
     private fun createNotification(): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Proximity Turn On")
-            .setContentText("Monitoring light sensor...")
+            .setContentText(if (monitoring) "Monitoring light sensor..." else "Paused")
             .setSmallIcon(android.R.drawable.ic_menu_compass) // Placeholder icon
             .build()
     }

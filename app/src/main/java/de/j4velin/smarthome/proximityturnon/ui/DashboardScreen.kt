@@ -82,6 +82,7 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                     viewModel.toggleService(context)
                 }
             },
+            onEnabledChanged = viewModel::setEnabled,
             onWakeOnShadowChanged = viewModel::setWakeOnShadow,
             onShadowDropPercentChanged = viewModel::setShadowDropPercent,
             onBeepOnShadowChanged = viewModel::setBeepOnShadow,
@@ -108,6 +109,7 @@ fun DashboardContent(
     isRunning: Boolean,
     state: LightSensorService.State,
     onToggleService: () -> Unit,
+    onEnabledChanged: (Boolean) -> Unit,
     onWakeOnShadowChanged: (Boolean) -> Unit,
     onShadowDropPercentChanged: (Int) -> Unit,
     onBeepOnShadowChanged: (Boolean) -> Unit,
@@ -131,7 +133,7 @@ fun DashboardContent(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(24.dp)
                 ) {
-                    StatusCard(isRunning = isRunning, onToggleService = onToggleService)
+                    StatusCard(isRunning, state, onToggleService, onEnabledChanged)
                     LightCard(state, onWakeOnShadowChanged, onShadowDropPercentChanged, onBeepOnShadowChanged)
                     CameraCard(state, onConfirmWithCameraChanged, onTestCamera)
                     ScreenOffTestCard(state)
@@ -151,7 +153,7 @@ fun DashboardContent(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    StatusCard(isRunning = isRunning, onToggleService = onToggleService)
+                    StatusCard(isRunning, state, onToggleService, onEnabledChanged)
                     LightCard(state, onWakeOnShadowChanged, onShadowDropPercentChanged, onBeepOnShadowChanged)
                     CameraCard(state, onConfirmWithCameraChanged, onTestCamera)
                     ScreenOffTestCard(state)
@@ -165,7 +167,9 @@ fun DashboardContent(
 @Composable
 fun StatusCard(
     isRunning: Boolean,
+    state: LightSensorService.State,
     onToggleService: () -> Unit,
+    onEnabledChanged: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val statusColor by animateColorAsState(
@@ -205,6 +209,30 @@ fun StatusCard(
                 onCheckedChange = { onToggleService() },
                 modifier = Modifier.scale(1.3f)
             )
+        }
+        if (isRunning) {
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (state.settings.enabled) "Detection active" else "Detection paused",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Text(
+                        text = "Also switchable by Home Assistant via broadcast intent " +
+                                LightSensorService.ACTION_ENABLE + " / …DISABLE",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+                Switch(checked = state.settings.enabled, onCheckedChange = onEnabledChanged)
+            }
         }
     }
 }
@@ -498,6 +526,7 @@ fun DashboardWidePreview() {
             isRunning = true,
             state = previewState,
             onToggleService = {},
+            onEnabledChanged = {},
             onWakeOnShadowChanged = {},
             onShadowDropPercentChanged = {},
             onBeepOnShadowChanged = {},
@@ -515,6 +544,7 @@ fun DashboardMobilePreview() {
             isRunning = false,
             state = LightSensorService.State(),
             onToggleService = {},
+            onEnabledChanged = {},
             onWakeOnShadowChanged = {},
             onShadowDropPercentChanged = {},
             onBeepOnShadowChanged = {},

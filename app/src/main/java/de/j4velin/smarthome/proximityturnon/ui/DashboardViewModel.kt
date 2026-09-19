@@ -30,6 +30,10 @@ class DashboardViewModel : ViewModel() {
         service?.state ?: flowOf(LightSensorService.State())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LightSensorService.State())
 
+    fun setEnabled(enabled: Boolean) {
+        _serviceInstance.value?.setEnabled(enabled)
+    }
+
     fun setWakeOnShadow(enabled: Boolean) {
         _serviceInstance.value?.setWakeOnShadow(enabled)
     }

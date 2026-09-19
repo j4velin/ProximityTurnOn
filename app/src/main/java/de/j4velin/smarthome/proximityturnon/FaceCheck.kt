@@ -130,6 +130,13 @@ class FaceCheck(private val context: Context, private val log: (String) -> Unit)
         callback(faceFound)
     }
 
+    /** Aborts a running check without reporting a result */
+    fun cancel() {
+        if (!isRunning) return
+        onResult = {}
+        finish(false)
+    }
+
     fun release() {
         finish(false)
         registry.currentState = Lifecycle.State.DESTROYED
