@@ -28,6 +28,14 @@ light sensor ──> shadow detected ──> [camera sees a face?] ──> scree
    counting as present instead of slowly becoming the new normal. Below 5 lx the room is
    considered too dark for shadow detection.
 
+   For the first 10 s after the service starts nothing counts as a shadow and baseline and
+   noise are learned unconditionally (otherwise a noisy sensor would never get a noise
+   estimate, because its downward jitter would be classified as shadows). When the screen
+   turns off, the baseline is re-seeded from the next reading with a 2 s warm-up: the
+   display's own light leaks into the sensor, and its disappearance must not be mistaken for
+   a shadow that wakes the screen straight back up. The detection logic lives in
+   `ShadowDetector` (pure Kotlin) and is covered by unit tests.
+
 2. **Camera confirmation** (optional) – when enabled, a shadow doesn't wake the screen
    directly. `FaceCheck` opens the front camera via CameraX `ImageAnalysis` (640×480) and runs
    ML Kit face detection on the frames. The screen is woken as soon as a face is found; after
@@ -47,13 +55,16 @@ light sensor ──> shadow detected ──> [camera sees a face?] ──> scree
 
 The app's only screen is a control/diagnostics dashboard:
 
-- **Service** – start/stop the foreground service.
+- **Service** – start/stop the foreground service, and a *detection active/paused* switch
+  (the same state Home Assistant sets via broadcast, see below).
 - **Light Sensor** – current lux, baseline and the resulting trigger level; toggles for
   *wake on shadow* and *beep on shadow* (a short tone at the moment the light sensor alone
   would have woken the screen – useful to feel the lag the camera step adds); a slider for
   the drop percentage (2–50 %).
 - **Camera Confirmation** – toggle (asks for the camera permission), face found / no face
-  counters, and a *test now* button to check detection range without waiting for a shadow.
+  counters, a *test now* button to check detection range without waiting for a shadow, and
+  the state of the "display over other apps" permission needed for the camera to work after
+  a reboot, with a button to grant it.
 - **Screen-off Test** – counts sensor events while the screen was on vs. off. Confirms the
   device does not power the light sensor down with the display (the M11 doesn't).
 - **Log** – the last 200 sensor/service events, also written to Logcat under the tag
@@ -163,9 +174,21 @@ Standard Android Studio project (Kotlin, Jetpack Compose, Material 3, CameraX, M
 detection bundled). `minSdk` 35.
 
 ```
-./gradlew :app:assembleDebug
+./gradlew :app:assembleDebug :app:testDebugUnitTest
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+### One-time setup on the device
+
+1. Start the service from the dashboard; grant the notification permission when asked.
+2. Enable *Confirm with camera* if wanted; grant the camera permission when asked.
+3. Grant "display over other apps" via the button on the camera card (needed for the camera
+   after a reboot, see below).
+4. Optional, belt and braces: exempt the app from battery optimisation so a brief unplug
+   can never put the service into Doze –
+   `adb shell dumpsys deviceidle whitelist +de.j4velin.smarthome.proximityturnon`.
+   While plugged in this doesn't matter, even with Lenovo's charge limit active.
+5. Turn off *beep on shadow* once you're done tuning.
 
 ## Reboots and app updates
 
@@ -185,5 +208,8 @@ until it is started from the dashboard again.
 
 - Shadow detection needs ambient light. In a dark room nothing triggers; the camera step
   additionally needs enough light to see a face.
+- Someone who stays in front of the tablet after the screen has timed out does not wake it
+  again just by standing there: the screen-off re-seed makes the shadowed light level the new
+  baseline. Stepping away and back (or touching the screen) wakes it.
 - The wake lock flags used to turn the screen on are deprecated. They work on the M11; other
   devices may need an activity with `setTurnScreenOn(true)` instead.
