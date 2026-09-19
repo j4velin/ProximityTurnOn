@@ -32,7 +32,9 @@ light sensor ──> shadow detected ──> [camera sees a face?] ──> scree
    directly. `FaceCheck` opens the front camera via CameraX `ImageAnalysis` (640×480) and runs
    ML Kit face detection on the frames. The screen is woken as soon as a face is found; after
    3 s without one the camera is closed again. Faces must be at least 15 % of the frame width,
-   which corresponds to someone ~50 cm away – people passing further back are ignored.
+   which corresponds to someone ~50 cm away – people passing further back are ignored – and
+   turned towards the tablet (head yaw within ±25°), so someone walking past in profile does
+   not count.
 
    This adds roughly 1–1.5 s of latency (camera start + first detection) but filters out
    false triggers from clouds or lights being switched, which matter for a tablet mounted

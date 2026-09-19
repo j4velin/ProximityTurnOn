@@ -21,6 +21,7 @@ import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetector
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import java.util.concurrent.Executors
+import kotlin.math.abs
 
 /**
  * Opens the front camera for a short moment and reports whether a face is
@@ -53,6 +54,13 @@ class FaceCheck(private val context: Context, private val log: (String) -> Unit)
          * this ignores people further away in the background.
          */
         private const val MIN_FACE_SIZE = 0.15f
+
+        /**
+         * Maximum head rotation around the vertical axis (yaw) for a face to
+         * count. Someone looking at the tablet is near 0, someone walking past
+         * is seen in profile at 45-90 degrees and must not wake the screen.
+         */
+        private const val MAX_YAW_DEGREES = 25f
     }
 
     init {
@@ -113,7 +121,14 @@ class FaceCheck(private val context: Context, private val log: (String) -> Unit)
         }
         frames++
         detector.process(InputImage.fromMediaImage(image, proxy.imageInfo.rotationDegrees))
-            .addOnSuccessListener { faces -> if (faces.isNotEmpty()) finish(true) }
+            .addOnSuccessListener { faces ->
+                val facing = faces.filter { abs(it.headEulerAngleY) <= MAX_YAW_DEGREES }
+                if (facing.isNotEmpty()) {
+                    finish(true)
+                } else if (faces.isNotEmpty()) {
+                    log("face ignored, not facing the tablet: yaw=%.0f°".format(faces.first().headEulerAngleY))
+                }
+            }
             .addOnFailureListener { log("face detection failed: $it") }
             .addOnCompleteListener { proxy.close() }
     }
