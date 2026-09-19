@@ -180,19 +180,15 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 ### One-time setup on the device
 
-Needed once per fresh install. Each step can be done on the tablet (the app asks for the
-permissions when the corresponding feature is switched on) or from a PC via adb, which is
-what was done on the current tablet – so no prompts were ever shown there.
-
-| Step | On the tablet | Via adb (`P=de.j4velin.smarthome.proximityturnon`) |
-|---|---|---|
-| Notification permission | prompted when starting the service | `adb shell pm grant $P android.permission.POST_NOTIFICATIONS` |
-| Camera permission | prompted when enabling *Confirm with camera* | `adb shell pm grant $P android.permission.CAMERA` |
-| Display over other apps (camera after reboot, see below) | *Grant* button on the camera card | `adb shell appops set $P SYSTEM_ALERT_WINDOW allow` |
-| Battery optimisation exemption (optional, so a brief unplug can never put the service into Doze; irrelevant while plugged in, even with Lenovo's charge limit active) | Settings → Apps → ProximityTurnOn → Battery → Unrestricted | – |
-
-Then start the service from the dashboard (this also arms the restart after reboot) and turn
-off *beep on shadow* once you're done tuning.
+1. Start the service from the dashboard; grant the notification permission when asked.
+   Starting it from the dashboard also arms the restart after a reboot.
+2. Enable *Confirm with camera* if wanted; grant the camera permission when asked.
+3. Grant "display over other apps" via the button on the camera card (needed for the camera
+   after a reboot, see below).
+4. Optional: exempt the app from battery optimisation (Settings → Apps → ProximityTurnOn →
+   Battery → Unrestricted) so a brief unplug can never put the service into Doze. While
+   plugged in this doesn't matter, even with Lenovo's charge limit active.
+5. Turn off *beep on shadow* once you're done tuning.
 
 ## Reboots and app updates
 
