@@ -189,7 +189,7 @@ what was done on the current tablet – so no prompts were ever shown there.
 | Notification permission | prompted when starting the service | `adb shell pm grant $P android.permission.POST_NOTIFICATIONS` |
 | Camera permission | prompted when enabling *Confirm with camera* | `adb shell pm grant $P android.permission.CAMERA` |
 | Display over other apps (camera after reboot, see below) | *Grant* button on the camera card | `adb shell appops set $P SYSTEM_ALERT_WINDOW allow` |
-| Battery optimisation exemption (optional, so a brief unplug can never put the service into Doze; irrelevant while plugged in, even with Lenovo's charge limit active) | Settings → Apps → ProximityTurnOn → Battery → Unrestricted | `adb shell dumpsys deviceidle whitelist +$P` |
+| Battery optimisation exemption (optional, so a brief unplug can never put the service into Doze; irrelevant while plugged in, even with Lenovo's charge limit active) | Settings → Apps → ProximityTurnOn → Battery → Unrestricted | – |
 
 Then start the service from the dashboard (this also arms the restart after reboot) and turn
 off *beep on shadow* once you're done tuning.
