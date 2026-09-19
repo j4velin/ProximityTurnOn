@@ -41,8 +41,21 @@ class ShadowDetector(
     var noise: Float = 0f
         private set
 
-    private var firstUpdate = 0L
+    private var warmupUntil = 0L
     private var lastUpdate = 0L
+
+    /**
+     * Forgets the baseline so the next reading becomes the new one, keeping the
+     * noise estimate. Used when the light situation changes for a known reason,
+     * e.g. the display turning off (its light leaks into the sensor). [warmupMs]
+     * overrides the regular warm-up for this reset.
+     */
+    fun reset(warmupMs: Long = this.warmupMs) {
+        baseline = null
+        pendingWarmupMs = warmupMs
+    }
+
+    private var pendingWarmupMs = warmupMs
 
     /** Lux value below which the next reading counts as a shadow */
     val triggerLux: Float
@@ -56,13 +69,14 @@ class ShadowDetector(
         val base = baseline
         if (base == null) {
             baseline = lux
-            firstUpdate = nowMs
+            warmupUntil = nowMs + pendingWarmupMs
+            pendingWarmupMs = warmupMs
             lastUpdate = nowMs
             return false
         }
         val drop = base - lux
         val threshold = maxOf(base * dropPercent / 100f, noise * noiseMargin)
-        val warmingUp = nowMs - firstUpdate < warmupMs
+        val warmingUp = nowMs < warmupUntil
         val shadow = !warmingUp && base >= minBaselineLux && drop > threshold
         if (!shadow) {
             val dt = (nowMs - lastUpdate).coerceAtLeast(1).toFloat()

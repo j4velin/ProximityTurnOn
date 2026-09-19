@@ -103,6 +103,38 @@ class ShadowDetectorTest {
     }
 
     @Test
+    fun `reset re-seeds the baseline from the next reading and keeps the noise`() {
+        val detector = ShadowDetector(dropPercent = 15, noiseMargin = 4f)
+        repeat(500) { i -> detector.feed(ROOM_LUX + if (i % 2 == 0) 10f else -10f) }
+        val noiseBefore = detector.noise
+        assertTrue(noiseBefore > 5f)
+
+        // the display turns off and takes 25% of the light with it
+        detector.reset(warmupMs = 2_000L)
+        val dark = ROOM_LUX * 0.75f
+        assertFalse("first reading after a reset is never a shadow", detector.feed(dark))
+        assertEquals(dark, detector.baseline!!, 0.01f)
+        assertEquals(noiseBefore, detector.noise, 0.01f)
+        // the reduced level is now normal ...
+        repeat(100) { assertFalse(detector.feed(dark)) }
+        // ... and a real shadow relative to it still triggers
+        assertTrue(detector.feed(dark * 0.5f))
+    }
+
+    @Test
+    fun `reset uses its own warm-up length`() {
+        val detector = settled()
+        detector.reset(warmupMs = 2_000L)
+        detector.feed(ROOM_LUX)
+        // 1 s later: still warming up
+        detector.feed(ROOM_LUX, samples = 4)
+        assertFalse(detector.feed(ROOM_LUX * 0.5f))
+        // 3 s later: warm-up over, and it was the short one, not the default 10 s
+        detector.feed(ROOM_LUX, samples = 10)
+        assertTrue(detector.feed(ROOM_LUX * 0.5f))
+    }
+
+    @Test
     fun `no shadow during warm-up, baseline and noise are learned instead`() {
         val detector = ShadowDetector(dropPercent = 15, warmupMs = 10_000L)
         detector.feed(ROOM_LUX)

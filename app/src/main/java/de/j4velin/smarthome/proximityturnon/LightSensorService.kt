@@ -58,6 +58,7 @@ class LightSensorService : Service(), SensorEventListener {
 
     private val detector = ShadowDetector(dropPercent = Settings().shadowDropPercent)
     private var lastWakeAt = 0L
+    private var monitoring = false
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state.asStateFlow()
@@ -94,6 +95,9 @@ class LightSensorService : Service(), SensorEventListener {
             val on = intent.action == Intent.ACTION_SCREEN_ON
             _state.update { it.copy(screenOn = on) }
             log("screen ${if (on) "ON" else "OFF"}")
+            // the display's own light leaks into the sensor; without a new baseline
+            // its disappearance could look like a shadow and wake the screen again
+            if (!on) detector.reset(warmupMs = SCREEN_OFF_WARMUP_MS)
         }
     }
 
@@ -105,6 +109,9 @@ class LightSensorService : Service(), SensorEventListener {
 
         private const val SCREEN_ON_MS = 30_000L
         private const val WAKE_COOLDOWN_MS = 10_000L
+
+        /** Shorter warm-up after the display went off, the noise estimate is already known */
+        private const val SCREEN_OFF_WARMUP_MS = 2_000L
 
         private const val TONE_VOLUME = 80
         private const val TONE_MS = 150
@@ -172,6 +179,8 @@ class LightSensorService : Service(), SensorEventListener {
     // the tablet is on power 24/7 and the sensor must be processed with the screen off
     @SuppressLint("WakelockTimeout")
     private fun startMonitoring() {
+        if (monitoring) return // onStartCommand may run again for an already running service
+        monitoring = true
         registerReceiver(screenReceiver, IntentFilter().apply {
             addAction(Intent.ACTION_SCREEN_ON)
             addAction(Intent.ACTION_SCREEN_OFF)
@@ -184,6 +193,8 @@ class LightSensorService : Service(), SensorEventListener {
     }
 
     private fun stopMonitoring() {
+        if (!monitoring) return
+        monitoring = false
         sensorManager?.unregisterListener(this)
         runCatching { unregisterReceiver(screenReceiver) }
         partialWakeLock?.takeIf { it.isHeld }?.release()
@@ -307,7 +318,7 @@ class LightSensorService : Service(), SensorEventListener {
     private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
     private fun log(msg: String) {
-        Log.d(TAG, msg)
+        Log.i(TAG, msg) // Log.d is dropped for third-party apps on the Lenovo build
         val line = "${timeFormat.format(Date())} $msg"
         _state.update { it.copy(log = (listOf(line) + it.log).take(LOG_LINES)) }
     }

@@ -1,6 +1,5 @@
 package de.j4velin.smarthome.proximityturnon.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -25,7 +24,6 @@ private val LightColorScheme = lightColorScheme(
 @Composable
 fun ProximityTurnOnTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
     content: @Composable () -> Unit
 ) {
