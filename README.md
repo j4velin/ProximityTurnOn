@@ -69,28 +69,72 @@ two broadcast intents while it is running:
 - `de.j4velin.smarthome.proximityturnon.ENABLE`
 
 The Home Assistant Companion app can send them with a `command_broadcast_intent`
-notification, so no network code is needed in this app:
+notification, so no network code is needed in this app. The automation below enables
+detection only while someone is home and it is "day" — sun above the horizon and after
+07:00 on weekdays / 07:30 at the weekend — and re-evaluates on every presence change, at
+sunrise/sunset, at the morning times and after a Home Assistant restart (in case a broadcast
+was missed). Native conditions only, no templates:
 
 ```yaml
-automation:
-  - alias: Tablet presence detection
-    triggers:
-      - trigger: state
-        entity_id:
-          - zone.home            # number of people at home
-          - input_boolean.night  # or sun.sun, a schedule, ...
-    actions:
-      - action: notify.mobile_app_tab_m11
+alias: Tablet - presence detection
+description: >-
+  Enable the tablet's presence detection only during the day and while somebody is home.
+mode: single
+triggers:
+  - trigger: state
+    entity_id: [person.a, person.b]
+    to: home
+  - trigger: state
+    entity_id: [person.a, person.b]
+    from: home
+  - trigger: sun
+    event: sunset
+  - trigger: state
+    entity_id: sun.sun
+    to: above_horizon
+  - trigger: time
+    at: "07:00:01"
+    weekday: [mon, tue, wed, thu, fri]
+  - trigger: time
+    at: "07:30:01"
+    weekday: [sat, sun]
+  - trigger: homeassistant
+    event: start
+actions:
+  - if:
+      - condition: or
+        conditions:
+          - condition: state
+            entity_id: person.a
+            state: home
+          - condition: state
+            entity_id: person.b
+            state: home
+      - condition: state
+        entity_id: sun.sun
+        state: above_horizon
+      - condition: or
+        conditions:
+          - condition: time
+            after: "07:00:00"
+            weekday: [mon, tue, wed, thu, fri]
+          - condition: time
+            after: "07:30:00"
+            weekday: [sat, sun]
+    then:
+      - action: notify.mobile_app_m11
         data:
           message: command_broadcast_intent
           data:
             intent_package_name: de.j4velin.smarthome.proximityturnon
-            intent_action: >-
-              {% if states('zone.home') | int > 0 and is_state('input_boolean.night', 'off') %}
-                de.j4velin.smarthome.proximityturnon.ENABLE
-              {% else %}
-                de.j4velin.smarthome.proximityturnon.DISABLE
-              {% endif %}
+            intent_action: de.j4velin.smarthome.proximityturnon.ENABLE
+    else:
+      - action: notify.mobile_app_m11
+        data:
+          message: command_broadcast_intent
+          data:
+            intent_package_name: de.j4velin.smarthome.proximityturnon
+            intent_action: de.j4velin.smarthome.proximityturnon.DISABLE
 ```
 
 The same switch is on the dashboard's status card. The state is persisted, so after a
