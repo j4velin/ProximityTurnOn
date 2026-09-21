@@ -68,10 +68,7 @@ object Overlay {
                 v.viewTreeObserver.addOnPreDrawListener(object : ViewTreeObserver.OnPreDrawListener {
                     override fun onPreDraw(): Boolean {
                         v.viewTreeObserver.removeOnPreDrawListener(this)
-                        v.postDelayed({
-                            Log.i(TAG, "overlay shown")
-                            onVisible()
-                        }, VISIBLE_DELAY_MS)
+                        v.postDelayed({ onVisible() }, VISIBLE_DELAY_MS)
                         return true
                     }
                 })

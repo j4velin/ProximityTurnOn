@@ -41,8 +41,9 @@ import java.util.Locale
  * shadow onto the tablet, i.e. the lux value drops suddenly below a slowly
  * moving baseline (see [ShadowDetector]).
  *
- * Every sensor event is logged together with the current screen state so it
- * can be verified that the sensor keeps delivering while the screen is off.
+ * Every sensor event is logged to the dashboard together with the current
+ * screen state so it can be verified that the sensor keeps delivering while the
+ * screen is off. Logcat only gets failures.
  */
 class LightSensorService : Service(), SensorEventListener {
 
@@ -237,7 +238,7 @@ class LightSensorService : Service(), SensorEventListener {
             startForeground(NOTIFICATION_ID, createNotification(), types)
         }.onFailure {
             // the system refused the camera type (background start without exemption)
-            log("startForeground with camera type failed: $it")
+            log("startForeground with camera type failed: $it", logcat = true)
             startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         }
     }
@@ -256,7 +257,7 @@ class LightSensorService : Service(), SensorEventListener {
         lightSensor?.let {
             sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
             log("listener registered")
-        } ?: log("no light sensor - nothing to monitor")
+        } ?: log("no light sensor - nothing to monitor", logcat = true)
     }
 
     private fun stopMonitoring() {
@@ -385,8 +386,9 @@ class LightSensorService : Service(), SensorEventListener {
 
     private val timeFormat = SimpleDateFormat("HH:mm:ss.SSS", Locale.US)
 
-    private fun log(msg: String) {
-        Log.i(TAG, msg) // Log.d is dropped for third-party apps on the Lenovo build
+    /** [logcat] is reserved for failures - the dashboard log has the full history */
+    private fun log(msg: String, logcat: Boolean = false) {
+        if (logcat) Log.i(TAG, msg) // Log.d is dropped for third-party apps on the Lenovo build
         val line = "${timeFormat.format(Date())} $msg"
         _state.update { it.copy(log = (listOf(line) + it.log).take(LOG_LINES)) }
     }

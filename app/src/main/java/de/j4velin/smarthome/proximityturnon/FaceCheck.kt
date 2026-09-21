@@ -30,7 +30,11 @@ import kotlin.math.abs
  *
  * All callbacks are delivered on the main thread.
  */
-class FaceCheck(private val context: Context, private val log: (String) -> Unit) : LifecycleOwner {
+class FaceCheck(
+    private val context: Context,
+    /** Logs a message; the flag marks failures that should also reach logcat */
+    private val log: (msg: String, logcat: Boolean) -> Unit,
+) : LifecycleOwner {
 
     private val registry = LifecycleRegistry(this).also { it.currentState = Lifecycle.State.RESUMED }
     override val lifecycle: Lifecycle get() = registry
@@ -66,7 +70,7 @@ class FaceCheck(private val context: Context, private val log: (String) -> Unit)
     init {
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
-            cameraProvider = runCatching { future.get() }.onFailure { log("camera provider failed: $it") }.getOrNull()
+            cameraProvider = runCatching { future.get() }.onFailure { log("camera provider failed: $it", true) }.getOrNull()
         }, ContextCompat.getMainExecutor(context))
     }
 
@@ -74,7 +78,7 @@ class FaceCheck(private val context: Context, private val log: (String) -> Unit)
     fun start(onResult: (Boolean) -> Unit) {
         if (isRunning) return
         val provider = cameraProvider ?: run {
-            log("camera not ready")
+            log("camera not ready", true)
             onResult(false)
             return
         }
@@ -100,9 +104,9 @@ class FaceCheck(private val context: Context, private val log: (String) -> Unit)
         runCatching {
             provider.unbindAll()
             provider.bindToLifecycle(this, CameraSelector.DEFAULT_FRONT_CAMERA, analysis)
-            log("camera check started")
+            log("camera check started", false)
         }.onFailure {
-            log("camera bind failed: $it")
+            log("camera bind failed: $it", true)
             finish(false)
             return
         }
@@ -126,10 +130,10 @@ class FaceCheck(private val context: Context, private val log: (String) -> Unit)
                 if (facing.isNotEmpty()) {
                     finish(true)
                 } else if (faces.isNotEmpty()) {
-                    log("face ignored, not facing the tablet: yaw=%.0f°".format(faces.first().headEulerAngleY))
+                    log("face ignored, not facing the tablet: yaw=%.0f°".format(faces.first().headEulerAngleY), false)
                 }
             }
-            .addOnFailureListener { log("face detection failed: $it") }
+            .addOnFailureListener { log("face detection failed: $it", true) }
             .addOnCompleteListener { proxy.close() }
     }
 
@@ -141,7 +145,7 @@ class FaceCheck(private val context: Context, private val log: (String) -> Unit)
         detector?.close()
         detector = null
         val ms = SystemClock.elapsedRealtime() - startedAt
-        log("camera check: ${if (faceFound) "FACE" else "no face"} after ${ms}ms, $frames frames")
+        log("camera check: ${if (faceFound) "FACE" else "no face"} after ${ms}ms, $frames frames", false)
         callback(faceFound)
     }
 

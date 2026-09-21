@@ -67,8 +67,8 @@ The app's only screen is a control/diagnostics dashboard:
   a reboot, with a button to grant it.
 - **Screen-off Test** – counts sensor events while the screen was on vs. off. Confirms the
   device does not power the light sensor down with the display (the M11 doesn't).
-- **Log** – the last 200 sensor/service events, also written to Logcat under the tag
-  `ProximityTurnOn`.
+- **Log** – the last 200 sensor/service events. Only failures (and the boot receiver) are
+  also written to Logcat under the tag `ProximityTurnOn`.
 
 All toggles and the threshold are persisted in DataStore and survive restarts.
 
