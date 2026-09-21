@@ -41,9 +41,9 @@ import java.util.Locale
  * shadow onto the tablet, i.e. the lux value drops suddenly below a slowly
  * moving baseline (see [ShadowDetector]).
  *
- * Every sensor event is logged to the dashboard together with the current
- * screen state so it can be verified that the sensor keeps delivering while the
- * screen is off. Logcat only gets failures.
+ * The dashboard log only records state changes (shadows, screen state, wake-ups,
+ * camera checks, failures); the live sensor values are shown on the dashboard
+ * directly. Logcat only gets failures.
  */
 class LightSensorService : Service(), SensorEventListener {
 
@@ -181,10 +181,6 @@ class LightSensorService : Service(), SensorEventListener {
                 screenOn = powerManager?.isInteractive != false,
             )
         }
-        log(
-            "light sensor: ${lightSensor?.name ?: "NONE"}, wakeUp=${lightSensor?.isWakeUpSensor}, " +
-                    "maxRange=${lightSensor?.maximumRange}, power=${lightSensor?.power}mA"
-        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -256,7 +252,6 @@ class LightSensorService : Service(), SensorEventListener {
         partialWakeLock?.takeIf { !it.isHeld }?.acquire()
         lightSensor?.let {
             sensorManager?.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL)
-            log("listener registered")
         } ?: log("no light sensor - nothing to monitor", logcat = true)
     }
 
@@ -266,7 +261,6 @@ class LightSensorService : Service(), SensorEventListener {
         sensorManager?.unregisterListener(this)
         runCatching { unregisterReceiver(screenReceiver) }
         partialWakeLock?.takeIf { it.isHeld }?.release()
-        log("listener unregistered")
     }
 
     override fun onDestroy() {
@@ -283,7 +277,6 @@ class LightSensorService : Service(), SensorEventListener {
 
     fun setWakeOnShadow(enabled: Boolean) {
         scope.launch { updateSettings { it.copy(wakeOnShadow = enabled) } }
-        log("wake on shadow ${if (enabled) "enabled" else "disabled"}")
     }
 
     fun setShadowDropPercent(percent: Int) {
@@ -297,7 +290,6 @@ class LightSensorService : Service(), SensorEventListener {
     fun setConfirmWithCamera(enabled: Boolean) {
         scope.launch { updateSettings { it.copy(confirmWithCamera = enabled) } }
         if (enabled) startForeground() // picks up the camera type now that the permission is granted
-        log("camera confirmation ${if (enabled) "enabled" else "disabled"}")
     }
 
     /** Manually triggers a camera check, e.g. to test detection range from the dashboard */
@@ -334,14 +326,20 @@ class LightSensorService : Service(), SensorEventListener {
                 lastEventWhileScreenOff = if (screenOn) it.lastEventWhileScreenOff else now,
             )
         }
-        log(
-            "lux=%.1f base=%.1f noise=%.1f screen=%s%s".format(
-                lux, detector.baseline, detector.noise, if (screenOn) "ON" else "OFF", if (shadow) " SHADOW" else ""
+        // the live values are on the dashboard, only the start of a shadow is worth a log line
+        if (shadow && !inShadow) {
+            log(
+                "shadow: lux=%.1f base=%.1f noise=%.1f screen=%s".format(
+                    lux, detector.baseline, detector.noise, if (screenOn) "ON" else "OFF"
+                )
             )
-        )
+        }
+        inShadow = shadow
 
         if (shadow && !screenOn && _state.value.settings.wakeOnShadow) onShadowDetected()
     }
+
+    private var inShadow = false
 
     private fun onShadowDetected() {
         val now = SystemClock.elapsedRealtime()
@@ -371,9 +369,7 @@ class LightSensorService : Service(), SensorEventListener {
         }
     }
 
-    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
-        log("accuracy changed: $accuracy")
-    }
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
 
     private fun wakeScreen() {
         val now = SystemClock.elapsedRealtime()

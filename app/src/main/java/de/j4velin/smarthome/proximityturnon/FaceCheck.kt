@@ -46,6 +46,8 @@ class FaceCheck(
     private var onResult: ((Boolean) -> Unit)? = null
     private var startedAt = 0L
     private var frames = 0
+    /** Frames with a face that was turned away from the tablet */
+    private var turnedAway = 0
 
     val isRunning: Boolean get() = onResult != null
 
@@ -85,6 +87,7 @@ class FaceCheck(
         this.onResult = onResult
         startedAt = SystemClock.elapsedRealtime()
         frames = 0
+        turnedAway = 0
         detector = FaceDetection.getClient(
             FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
@@ -104,7 +107,6 @@ class FaceCheck(
         runCatching {
             provider.unbindAll()
             provider.bindToLifecycle(this, CameraSelector.DEFAULT_FRONT_CAMERA, analysis)
-            log("camera check started", false)
         }.onFailure {
             log("camera bind failed: $it", true)
             finish(false)
@@ -130,7 +132,7 @@ class FaceCheck(
                 if (facing.isNotEmpty()) {
                     finish(true)
                 } else if (faces.isNotEmpty()) {
-                    log("face ignored, not facing the tablet: yaw=%.0f°".format(faces.first().headEulerAngleY), false)
+                    turnedAway++
                 }
             }
             .addOnFailureListener { log("face detection failed: $it", true) }
@@ -145,7 +147,8 @@ class FaceCheck(
         detector?.close()
         detector = null
         val ms = SystemClock.elapsedRealtime() - startedAt
-        log("camera check: ${if (faceFound) "FACE" else "no face"} after ${ms}ms, $frames frames", false)
+        val turnedAwayNote = if (turnedAway > 0) ", $turnedAway turned away" else ""
+        log("camera check: ${if (faceFound) "FACE" else "no face"} after ${ms}ms, $frames frames$turnedAwayNote", false)
         callback(faceFound)
     }
 

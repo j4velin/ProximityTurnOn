@@ -579,7 +579,7 @@ private val previewState = LightSensorService.State(
     eventsScreenOn = 42,
     eventsScreenOff = 7,
     settings = Settings(shadowDropPercent = 15),
-    log = listOf("12:00:00.000 lux=300.0 base=344.0 noise=1.2 screen=OFF SHADOW", "11:59:59.000 screen OFF")
+    log = listOf("12:00:00.000 shadow: lux=300.0 base=344.0 noise=1.2 screen=OFF", "11:59:59.000 screen OFF")
 )
 
 @Preview(showBackground = true, device = "spec:width=1280dp,height=800dp,dpi=240")
