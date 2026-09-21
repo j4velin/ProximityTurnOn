@@ -57,7 +57,9 @@ The app's only screen is a control/diagnostics dashboard:
 
 - **Service** – start/stop the foreground service, and a *detection active/paused* switch
   (the same state Home Assistant sets via broadcast, see below).
-- **Light Sensor** – current lux, baseline and the resulting trigger level; toggles for
+- **Light Sensor** – current lux, baseline, the resulting trigger level and the required
+  drop, marked with whichever rule currently applies (the configured percentage or the
+  noise margin, when the sensor noise estimate is high); toggles for
   *wake on shadow* and *beep on shadow* (a short tone at the moment the light sensor alone
   would have woken the screen – useful to feel the lag the camera step adds); a slider for
   the drop percentage (2–50 %).

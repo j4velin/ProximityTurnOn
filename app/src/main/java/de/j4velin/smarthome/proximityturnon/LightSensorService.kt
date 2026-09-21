@@ -80,6 +80,10 @@ class LightSensorService : Service(), SensorEventListener {
         val noise: Float = 0f,
         /** Lux value below which the next reading counts as a shadow */
         val triggerLux: Float = 0f,
+        /** Drop required by the configured percentage */
+        val percentDrop: Float = 0f,
+        /** Drop required by the noise margin; the larger of the two applies */
+        val noiseDrop: Float = 0f,
         val screenOn: Boolean = true,
         val lastEventAt: Long? = null,
         val eventsScreenOn: Int = 0,
@@ -169,7 +173,14 @@ class LightSensorService : Service(), SensorEventListener {
         scope.launch {
             settingsFlow().collect { settings ->
                 detector.dropPercent = settings.shadowDropPercent
-                _state.update { it.copy(settings = settings, triggerLux = detector.triggerLux) }
+                _state.update {
+                    it.copy(
+                        settings = settings,
+                        triggerLux = detector.triggerLux,
+                        percentDrop = detector.percentDrop,
+                        noiseDrop = detector.noiseDrop,
+                    )
+                }
                 if (started) applyEnabled(settings.enabled)
             }
         }
@@ -320,6 +331,8 @@ class LightSensorService : Service(), SensorEventListener {
                 baseline = detector.baseline,
                 noise = detector.noise,
                 triggerLux = detector.triggerLux,
+                percentDrop = detector.percentDrop,
+                noiseDrop = detector.noiseDrop,
                 lastEventAt = now,
                 eventsScreenOn = it.eventsScreenOn + if (screenOn) 1 else 0,
                 eventsScreenOff = it.eventsScreenOff + if (screenOn) 0 else 1,

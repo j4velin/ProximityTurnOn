@@ -283,6 +283,16 @@ fun LightCard(
                 DataRow(icon = Icons.Rounded.Timeline, label = "Baseline", value = "%.1f lx".format(state.baseline ?: 0f))
                 Spacer(modifier = Modifier.height(16.dp))
                 DataRow(icon = Icons.Rounded.ArrowDownward, label = "Trigger below", value = "%.1f lx".format(state.triggerLux))
+                Spacer(modifier = Modifier.height(16.dp))
+                // the larger of the two drops applies, so it is obvious when the
+                // noise margin overrides the configured percentage
+                val noiseWins = state.noiseDrop > state.percentDrop
+                DataRow(
+                    icon = Icons.Rounded.Rule,
+                    label = "Required drop",
+                    value = if (noiseWins) "%.1f lx (noise margin)".format(state.noiseDrop)
+                    else "%.1f lx (%d %%)".format(state.percentDrop, state.settings.shadowDropPercent),
+                )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -315,7 +325,7 @@ fun LightCard(
             // slider is driven locally while dragging, persisted on release
             var percent by remember(state.settings.shadowDropPercent) { mutableIntStateOf(state.settings.shadowDropPercent) }
             Text(
-                text = "Shadow threshold: %d %% drop (sensor noise ±%.1f lx)".format(percent, state.noise),
+                text = "Shadow threshold: %d %% drop (sensor noise ±%.1f lx, margin %.1f lx)".format(percent, state.noise, state.noiseDrop),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
@@ -576,6 +586,9 @@ private val previewState = LightSensorService.State(
     lux = 300f,
     baseline = 344f,
     noise = 1.2f,
+    triggerLux = 292.4f,
+    percentDrop = 51.6f,
+    noiseDrop = 4.8f,
     eventsScreenOn = 42,
     eventsScreenOff = 7,
     settings = Settings(shadowDropPercent = 15),

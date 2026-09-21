@@ -57,11 +57,19 @@ class ShadowDetector(
 
     private var pendingWarmupMs = warmupMs
 
+    /** Drop below the baseline required by the configured percentage */
+    val percentDrop: Float
+        get() = (baseline ?: 0f) * dropPercent / 100f
+
+    /** Drop below the baseline required to clearly exceed the sensor noise */
+    val noiseDrop: Float
+        get() = noise * noiseMargin
+
     /** Lux value below which the next reading counts as a shadow */
     val triggerLux: Float
         get() {
             val base = baseline ?: return 0f
-            return base - maxOf(base * dropPercent / 100f, noise * noiseMargin)
+            return base - maxOf(percentDrop, noiseDrop)
         }
 
     /** Feeds a sensor reading, returns true if it is a shadow */
@@ -75,7 +83,7 @@ class ShadowDetector(
             return false
         }
         val drop = base - lux
-        val threshold = maxOf(base * dropPercent / 100f, noise * noiseMargin)
+        val threshold = maxOf(percentDrop, noiseDrop)
         val warmingUp = nowMs < warmupUntil
         val shadow = !warmingUp && base >= minBaselineLux && drop > threshold
         if (!shadow) {
